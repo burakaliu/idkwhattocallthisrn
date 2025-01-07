@@ -70,19 +70,63 @@ const TimerPage: React.FC = () => {
     return `${minutes}:${paddedSeconds}`;
   };
 
+  //timer code
+
   const handlePlayPause = () => {
+    fetchRemainingTime();
     setIsPlaying(!isPlaying);
   };
 
+  const startTimer = async (minutes: number): Promise<void> => {
+    try {
+      await invoke("start_timer", { minutes });
+      console.log("Timer started for " + minutes + " minutes");
+    } catch (error) {
+      console.error("There was a problem starting the timer", error);
+    }
+  };
+
+  const [remainingTime, setRemainingTime] = useState<number>(0);
+
+  const fetchRemainingTime = async () => {
+    try {
+      let time = (await invoke("get_remaining_time")) as number;
+      if (time === null) {
+        time = 0;
+      }
+      setRemainingTime(time);
+      if (time === 0) {
+        invoke("send_notification");
+        setIsPlaying(false);
+      } else {
+        setIsPlaying(true);
+      }
+      console.log("Remaining time:", time);
+    } catch (error) {
+      console.error("Error fetching remaining time:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchRemainingTime();
+    //const interval = setInterval(fetchRemainingTime, 500); // Update every second
+
+    //return () => clearInterval(interval);
+    return() => {};
+  }, []);
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <button onClick={() => startTimer(1)} className="mb-4">
+        start timer
+      </button>
       <div
         className="relative flex flex-col items-center"
         style={{ width: dimensions.timerSize, height: dimensions.timerSize }}
       >
         <CountdownCircleTimer
           isPlaying={isPlaying}
-          duration={initialTime * 60}
+          duration={remainingTime}
           colors={[`#${themeColors.primary}`, `#${themeColors.secondary}`]}
           colorsTime={[initialTime * 60, 0]}
           size={dimensions.timerSize}

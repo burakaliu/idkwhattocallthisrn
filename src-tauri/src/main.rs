@@ -7,13 +7,16 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::thread;
+use std::time::Duration as StdDuration;
+use std::sync::Mutex;
 use tauri::{command, State};
 use tokio::time::sleep;
 use std::path::PathBuf;
 use std::fs;
 use serde_json;
-
+use chrono::{Utc, DateTime};
+use tauri::{Manager, AppHandle}; // Needed for Tauri events
 
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -66,26 +69,102 @@ struct Launch {
     start_timer_at_launch: bool,
 }
 
+#[derive(Debug)]
+struct TimerState {
+    start_time: Option<DateTime<Utc>>,
+    duration: Option<Duration>,
+    notified: bool, // Prevent multiple notifications
+}
+
+impl TimerState {
+    fn new() -> Self {
+        TimerState {
+            start_time: None,
+            duration: None,
+            notified: false, // Prevent multiple notifications
+        }
+    }
+
+    fn start_timer(&mut self, minutes: i64) {
+        self.start_time = Some(Utc::now() + Duration::from_secs(1)); 
+        self.duration = Some(Duration::from_secs(chrono::Duration::minutes(minutes).num_seconds() as u64));
+    }
+
+    fn get_remaining_time(&self) -> Option<i64> {
+        if let (Some(start), Some(duration)) = (self.start_time, self.duration) {
+            let elapsed = Utc::now().signed_duration_since(start);
+            let remaining = chrono::Duration::from_std(duration).unwrap() - elapsed;
+            return Some(remaining.num_seconds().max(0)); // Ensure it doesn't go negative
+        }
+        None
+    }
+    
+    fn has_timer_ended(&mut self) -> bool {
+        if let Some(remaining) = self.get_remaining_time() {
+            if remaining == 0 && !self.notified {
+                self.notified = true;
+                return true;
+            }
+        }
+        false
+    }
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![
+    .manage(Mutex::new(TimerState::new())) 
+    .invoke_handler(tauri::generate_handler![
             save_settings,
             load_settings,
             send_notification,
+            start_timer,
+            get_remaining_time,
         ])
+        .setup(|app| {
+            let app_handle = app.handle().clone(); // Clone the handle for the thread
+
+            thread::spawn(move || {
+                let timer_state = app_handle.state::<Mutex<TimerState>>().clone();
+                loop {
+                    {
+                        let mut timer = timer_state.lock().unwrap();
+                        if timer.has_timer_ended() {
+                            println!("Timer ended! Sending notification...");
+                            tauri::async_runtime::block_on(send_notification()).unwrap();
+                        }
+                    }
+                    thread::sleep(StdDuration::from_secs(1)); // Check every second
+                }
+            });
+
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 
+#[tauri::command]
+async fn start_timer(state: State<'_, Mutex<TimerState>>, minutes: i64) -> Result<(), String> {
+    let mut timer = state.lock().unwrap();
+    timer.start_timer(minutes);
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_remaining_time(state: State<'_, Mutex<TimerState>>) -> Result<Option<i64>, String> {
+    let timer = state.lock().unwrap();
+    Ok(timer.get_remaining_time())
+}
 
 
 #[command]
 async fn send_notification() -> Result<(), String> {
+    println!("send_notification called");
     // Notification code remains the same
     Notification::new()
         .summary("Time's up!")
         .body("Your timer has finished.")
-        .icon("assets/notification_icon.png")
+        .icon("assets/notification_icon.jpg")
         .show()
         .map_err(|e| e.to_string())?;
 

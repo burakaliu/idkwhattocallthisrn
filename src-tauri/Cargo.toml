@@ -27,3 +27,4 @@ rodio = "0.17.0"
 tokio = { version = "1.0", features = ["full"] }
 tauri-utils = "1.0"
 tauri-api = "0.7.6"
+chrono = "0.4"
