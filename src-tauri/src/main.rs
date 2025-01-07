@@ -78,33 +78,12 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             save_settings,
             load_settings,
-            save_timer_state,
-            load_timer_state,
             send_notification,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 
-#[command]
-async fn save_timer_state(state: TimerState) -> Result<(), String> {
-    let serialized = serde_json::to_string(&state).map_err(|e| e.to_string())?;
-    fs::write("timer_state.json", serialized).map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-#[command]
-async fn load_timer_state() -> Result<TimerState, String> {
-    if let Ok(data) = fs::read_to_string("timer_state.json") {
-        serde_json::from_str(&data).map_err(|e| e.to_string())
-    } else {
-        Ok(TimerState {
-            remaining_time: 0,
-            is_playing: false,
-            last_updated: 0,
-        })
-    }
-}
 
 
 #[command]

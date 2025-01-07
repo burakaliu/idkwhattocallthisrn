@@ -45,25 +45,6 @@ const TimerPage: React.FC = () => {
     buttonSize: 0,
   });
 
-  useEffect(() => {
-    const fetchTimerState = async () => {
-      try {
-        const state = await invoke<TimerState>("load_timer_state");
-        if (state.remaining_time > 0) {
-          const now = Math.floor(Date.now() / 1000);
-          const elapsed = now - state.last_updated;
-          const newTime = Math.max(0, state.remaining_time - elapsed);
-          setInitialTime(newTime / 60); // Convert back to minutes
-          setIsPlaying(state.is_playing);
-        }
-      } catch (error) {
-        console.error("Failed to load timer state:", error);
-      }
-    };
-
-    fetchTimerState();
-  }, []);
-
   // Handle responsive sizing (remaining code unchanged)
   useEffect(() => {
     const calculateDimensions = () => {
@@ -96,37 +77,8 @@ const TimerPage: React.FC = () => {
   };
 
   const handlePlayPause = () => {
-    setIsPlaying((prev) => {
-      const newState = !prev;
-      saveTimerState(initialTime * 60, newState);
-      return newState;
-    });
+    setIsPlaying(!isPlaying);
   };
-
-  const saveTimerState = async (time: number, playing: boolean) => {
-    try {
-      await invoke("save_timer_state", {
-        state: {
-          remaining_time: time,
-          is_playing: playing,
-          last_updated: Math.floor(Date.now() / 1000),
-        },
-      });
-    } catch (error) {
-      console.error("Failed to save timer state:", error);
-    }
-  };
-
-  // Periodically save timer state
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (isPlaying) {
-        saveTimerState(initialTime * 60, isPlaying);
-      }
-    }, 100); // Save every 5 seconds
-
-    return () => clearInterval(interval);
-  }, [isPlaying, initialTime]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
