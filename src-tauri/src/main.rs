@@ -66,13 +66,6 @@ struct Launch {
     start_timer_at_launch: bool,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct TimerState {
-    remaining_time: u64,  // in seconds
-    is_playing: bool,
-    last_updated: u64,    // timestamp
-}
-
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![

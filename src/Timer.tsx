@@ -21,12 +21,6 @@ interface TimerSettings {
   };
 }
 
-interface TimerState {
-  remaining_time: number;
-  last_updated: number;
-  is_playing: boolean;
-}
-
 const TimerPage: React.FC = () => {
   const [initialTime, setInitialTime] = useState<number>(2);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
