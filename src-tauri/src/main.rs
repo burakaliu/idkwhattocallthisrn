@@ -4,16 +4,17 @@ use std::{
     collections::HashMap,
     fs::File,
     io::BufReader,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Instant, Duration, SystemTime, UNIX_EPOCH},
 };
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use tauri::{command, State};
 use tokio::time::sleep;
 use std::path::PathBuf;
 use std::fs;
 use serde_json;
-
+mod timer;
+use timer::Timer;
+use std::thread;
+use std::sync::{Arc, Barrier, Mutex};
 
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -66,46 +67,54 @@ struct Launch {
     start_timer_at_launch: bool,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct TimerState {
-    remaining_time: u64,  // in seconds
-    is_playing: bool,
-    last_updated: u64,    // timestamp
+struct AppState(Mutex<Timer>);
+
+#[tauri::command]
+fn start_timer(state: State<AppState>, seconds: u64) {
+    let mut timer = state.0.lock().unwrap();
+    *timer = Timer::new(seconds);
+    timer.play();
+}
+
+#[tauri::command]
+fn stop_timer(state: State<AppState>) {
+    let mut timer = state.0.lock().unwrap();
+    timer.pause();
+}
+
+#[tauri::command]
+fn get_time_left(state: State<AppState>) -> u64 {
+    let timer = state.0.lock().unwrap();
+    timer.time_left()
 }
 
 fn main() {
+    let mut timer = Timer::new(2);
+
+    // Start the timer
+    println!("Starting the timer...");
+    timer.play();
+
+    while timer.time_left() != 0 {
+        println!("Time left: {:?}", timer.time_left());
+        thread::sleep(Duration::new(1, 0));
+    }
+
+    println!("sending notification now!");
+
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![
+    .manage(AppState(Mutex::new(Timer::new(0)))) // Initial timer state
+    .invoke_handler(tauri::generate_handler![
             save_settings,
             load_settings,
-            save_timer_state,
-            load_timer_state,
             send_notification,
+            start_timer,
+            stop_timer,
+            get_time_left
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
-#[command]
-async fn save_timer_state(state: TimerState) -> Result<(), String> {
-    let serialized = serde_json::to_string(&state).map_err(|e| e.to_string())?;
-    fs::write("timer_state.json", serialized).map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-#[command]
-async fn load_timer_state() -> Result<TimerState, String> {
-    if let Ok(data) = fs::read_to_string("timer_state.json") {
-        serde_json::from_str(&data).map_err(|e| e.to_string())
-    } else {
-        Ok(TimerState {
-            remaining_time: 0,
-            is_playing: false,
-            last_updated: 0,
-        })
-    }
-}
-
 
 #[command]
 async fn send_notification() -> Result<(), String> {
@@ -171,4 +180,5 @@ async fn load_settings() -> Result<Settings, String> {
         },
     })
 }
+
 

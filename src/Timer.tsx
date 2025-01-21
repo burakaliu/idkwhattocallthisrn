@@ -1,190 +1,147 @@
-import React, { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
-import { CountdownCircleTimer } from "react-countdown-circle-timer";
-import { Play, Pause } from "lucide-react";
+import React, { useEffect, useState, useRef } from 'react';
 import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
-
-interface TimerSettings {
-  customization: {
-    theme: {
-      primary: string;
-      secondary: string;
-      accent: string;
-    };
-  };
-  general: {
-    timer_defaults: {
-      work_duration: number;
-      break_duration: number;
-    };
-  };
-}
+import { CountdownCircleTimer } from 'react-countdown-circle-timer';
 
 interface TimerState {
-  remaining_time: number;
-  last_updated: number;
-  is_playing: boolean;
+  start_time: number | null;
+  duration: number;
+  elapsed: number;
+  is_paused: boolean;
 }
 
-const TimerPage: React.FC = () => {
-  const [initialTime, setInitialTime] = useState<number>(2);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [themeColors, setThemeColors] = useState<
-    TimerSettings["customization"]["theme"]
-  >({
-    primary: "#004777",
-    secondary: "#F7B801",
-    accent: "#10B981",
+const Timer: React.FC = () => {
+  const [minutes, setMinutes] = useState<number>(() => {
+    const saved = localStorage.getItem('timerMinutes');
+    return saved ? parseInt(saved) : 5;
   });
-
-  const [dimensions, setDimensions] = useState({
-    timerSize: 0,
-    strokeWidth: 0,
-    fontSize: 0,
-    buttonSize: 0,
-  });
-
+  const [timerState, setTimerState] = useState<TimerState | null>(null);
+  const [key, setKey] = useState(0); // Force timer re-render
+  
+  // Initialize timer state on mount
   useEffect(() => {
-    const fetchTimerState = async () => {
+    const initializeTimerState = async () => {
       try {
-        const state = await invoke<TimerState>("load_timer_state");
-        if (state.remaining_time > 0) {
-          const now = Math.floor(Date.now() / 1000);
-          const elapsed = now - state.last_updated;
-          const newTime = Math.max(0, state.remaining_time - elapsed);
-          setInitialTime(newTime / 60); // Convert back to minutes
-          setIsPlaying(state.is_playing);
+        const currentState = await invoke<TimerState>('get_timer_state');
+        if (currentState.duration > 0) {
+          setTimerState(currentState);
+          setMinutes(Math.ceil(currentState.duration / (60 * 1000)));
+          setKey(prev => prev + 1); // Force timer reset
         }
       } catch (error) {
-        console.error("Failed to load timer state:", error);
+        console.error('Failed to get timer state:', error);
       }
     };
 
-    fetchTimerState();
+    initializeTimerState();
   }, []);
 
-  // Handle responsive sizing (remaining code unchanged)
   useEffect(() => {
-    const calculateDimensions = () => {
-      const minDimension = Math.min(window.innerWidth, window.innerHeight);
-      const containerSize = minDimension * 0.8;
+    localStorage.setItem('timerMinutes', minutes.toString());
+  }, [minutes]);
 
-      const timerSize = Math.min(containerSize, 600);
-      const strokeWidth = timerSize * 0.1;
-      const fontSize = timerSize * 0.2;
-      const buttonSize = timerSize * 0.15;
+  // Poll timer state from backend
+  useEffect(() => {
+    const intervalId = setInterval(async () => {
+      try {
+        const newState = await invoke<TimerState>('get_timer_state');
+        if (newState.duration > 0) {
+          setTimerState(prevState => {
+            // Only update if there's a meaningful change
+            if (!prevState || 
+                prevState.elapsed !== newState.elapsed || 
+                prevState.is_paused !== newState.is_paused) {
+              return newState;
+            }
+            return prevState;
+          });
+        }
+      } catch (error) {
+        console.error('Failed to poll timer state:', error);
+      }
+    }, 100);
 
-      setDimensions({
-        timerSize,
-        strokeWidth,
-        fontSize,
-        buttonSize,
-      });
-    };
-
-    calculateDimensions();
-    window.addEventListener("resize", calculateDimensions);
-    return () => window.removeEventListener("resize", calculateDimensions);
+    return () => clearInterval(intervalId);
   }, []);
 
-  const formatTime = ({ remainingTime }: { remainingTime: number }) => {
-    const minutes = Math.floor(remainingTime / 60);
-    const seconds = remainingTime % 60;
-    const paddedSeconds = seconds < 10 ? `0${seconds}` : seconds;
-    return `${minutes}:${paddedSeconds}`;
-  };
-
-  const handlePlayPause = () => {
-    setIsPlaying((prev) => {
-      const newState = !prev;
-      saveTimerState(initialTime * 60, newState);
-      return newState;
-    });
-  };
-
-  const saveTimerState = async (time: number, playing: boolean) => {
+  const handleStart = async () => {
     try {
-      await invoke("save_timer_state", {
-        state: {
-          remaining_time: time,
-          is_playing: playing,
-          last_updated: Math.floor(Date.now() / 1000),
-        },
-      });
+      const newState = await invoke<TimerState>('start_timer', { minutes });
+      setTimerState(newState);
+      setKey(prev => prev + 1); // Force timer reset
     } catch (error) {
-      console.error("Failed to save timer state:", error);
+      console.error('Failed to start timer:', error);
     }
   };
 
-  // Periodically save timer state
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (isPlaying) {
-        saveTimerState(initialTime * 60, isPlaying);
-      }
-    }, 100); // Save every 5 seconds
+  const handlePause = async () => {
+    try {
+      const newState = await invoke<TimerState>('pause_timer');
+      setTimerState(newState);
+    } catch (error) {
+      console.error('Failed to pause timer:', error);
+    }
+  };
 
-    return () => clearInterval(interval);
-  }, [isPlaying, initialTime]);
+  const handleResume = async () => {
+    try {
+      const newState = await invoke<TimerState>('resume_timer');
+      setTimerState(newState);
+    } catch (error) {
+      console.error('Failed to resume timer:', error);
+    }
+  };
+
+  const getRemainingTime = () => {
+    if (!timerState) return minutes * 60;
+    const remainingMs = Math.max(0, timerState.duration - timerState.elapsed);
+    return remainingMs / 1000;
+  };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <div
-        className="relative flex flex-col items-center"
-        style={{ width: dimensions.timerSize, height: dimensions.timerSize }}
-      >
-        <CountdownCircleTimer
-          isPlaying={isPlaying}
-          duration={initialTime * 60}
-          colors={[`#${themeColors.primary}`, `#${themeColors.secondary}`]}
-          colorsTime={[initialTime * 60, 0]}
-          size={dimensions.timerSize}
-          strokeLinecap="round"
-          strokeWidth={dimensions.strokeWidth}
-          initialRemainingTime={2 * 60}
-          onComplete={() => {
-            return { shouldRepeat: false };
-          }}
-        >
-          {({ remainingTime }) => (
-            <div
-              className="flex flex-col items-center justify-center"
-              style={{ gap: dimensions.strokeWidth * 0.5 }}
-            >
-              <div
-                className="timer-text font-bold"
-                style={{ fontSize: dimensions.fontSize }}
-              >
-                {formatTime({ remainingTime })}
-              </div>
-              <button
-                onClick={handlePlayPause}
-                className="rounded-full p-2 transition-colors duration-200"
-                style={{
-                  backgroundColor: themeColors.accent,
-                  width: dimensions.buttonSize,
-                  height: dimensions.buttonSize,
-                }}
-              >
-                {isPlaying ? (
-                  <Pause
-                    size={dimensions.buttonSize * 0.6}
-                    className="text-white mx-auto"
-                  />
-                ) : (
-                  <Play
-                    size={dimensions.buttonSize * 0.6}
-                    className="text-white mx-auto"
-                  />
-                )}
-              </button>
-            </div>
-          )}
-        </CountdownCircleTimer>
-      </div>
+    <div className="flex flex-col items-center gap-4 p-4">
+      {(!timerState || timerState.duration === 0) ? (
+        <div className="flex gap-2 items-center">
+          <input
+            type="number"
+            value={minutes}
+            onChange={(e) => setMinutes(Number(e.target.value))}
+            className="w-20 p-2 border rounded"
+            min="1"
+          />
+          <button
+            onClick={handleStart}
+            className="px-4 py-2 bg-blue-500 text-white rounded"
+          >
+            Start Timer
+          </button>
+        </div>
+      ) : (
+        <>
+          <CountdownCircleTimer
+            key={key}
+            isPlaying={!timerState.is_paused}
+            duration={timerState.duration / 1000}
+            colors={['#004777', '#F7B801', '#A30000', '#A30000']}
+            colorsTime={[7, 5, 2, 0]}
+            initialRemainingTime={getRemainingTime()}
+          >
+            {({ remainingTime }) => {
+              const minutes = Math.floor(remainingTime / 60);
+              const seconds = Math.floor(remainingTime % 60);
+              return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }}
+          </CountdownCircleTimer>
+          
+          <button
+            onClick={timerState.is_paused ? handleResume : handlePause}
+            className="px-4 py-2 bg-blue-500 text-white rounded"
+          >
+            {timerState.is_paused ? 'Resume' : 'Pause'}
+          </button>
+        </>
+      )}
     </div>
   );
 };
 
-export default TimerPage;
+export default Timer;

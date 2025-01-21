@@ -349,3 +349,76 @@ const SettingsPage = () => {
 };
 
 export default SettingsPage;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <div
+          className="relative flex flex-col items-center"
+          style={{ width: dimensions.timerSize, height: dimensions.timerSize }}
+        >
+          <CountdownCircleTimer
+            isPlaying={isPlaying}
+            duration={minutes * 60}
+            colors={[`#${themeColors.primary}`, `#${themeColors.secondary}`]}
+            colorsTime={[initialTime * 60, 0]}
+            size={dimensions.timerSize}
+            strokeLinecap="round"
+            strokeWidth={dimensions.strokeWidth}
+            initialRemainingTime={2 * 60}
+            onComplete={() => {
+              return { shouldRepeat: false };
+            }}
+          >
+            {({ remainingTime }) => (
+              <div
+                className="flex flex-col items-center justify-center"
+                style={{ gap: dimensions.strokeWidth * 0.5 }}
+              >
+                <div
+                  className="timer-text font-bold"
+                  style={{ fontSize: dimensions.fontSize }}
+                >
+                  {formatTime({ remainingTime })}
+                </div>
+                <button
+                  onClick={
+                    timerState && timerState.is_paused
+                      ? handleResume
+                      : handlePause
+                  }
+                  className="rounded-full p-2 transition-colors duration-200"
+                  style={{
+                    backgroundColor: themeColors.accent,
+                    width: dimensions.buttonSize,
+                    height: dimensions.buttonSize,
+                  }}
+                >
+                  {isPlaying ? (
+                    <Pause
+                      size={dimensions.buttonSize * 0.6}
+                      className="text-white mx-auto"
+                    />
+                  ) : (
+                    <Play
+                      size={dimensions.buttonSize * 0.6}
+                      className="text-white mx-auto"
+                    />
+                  )}
+                </button>
+              </div>
+            )}
+          </CountdownCircleTimer>
+        </div>
+      </div>
