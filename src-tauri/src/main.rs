@@ -85,6 +85,7 @@ fn stop_timer(state: State<AppState>) {
 #[tauri::command]
 fn get_time_left(state: State<AppState>) -> u64 {
     let timer = state.0.lock().unwrap();
+    println!("Time left: {:?}", timer.time_left());
     timer.time_left()
 }
 
