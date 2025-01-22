@@ -24,19 +24,6 @@ const Timer: React.FC = () => {
     localStorage.setItem("timerMinutes", minutes.toString());
   }, [minutes]);
 
-  useEffect(() => {
-    const intervalId = setInterval(async () => {
-      try {
-        const time_left = await invoke<number>("get_time_left");
-        //console.log('get_time_left', time_left);
-      } catch (error) {
-        console.error("Failed to do something", error);
-      }
-    }, 1000);
-
-    return () => clearInterval(intervalId);
-  }, []);
-
   const handleStart = async () => {
     console.log("minutes", minutes);
     try {
