@@ -14,7 +14,6 @@ const Timer: React.FC = () => {
   useEffect(() => {
     const fetchRemainingTime = async () => {
       const timeLeft = await invoke<number>("get_time_left");
-      console.log("fetched initial timeLeft", timeLeft);
       setRemainingTime(timeLeft);
     };
     fetchRemainingTime();
@@ -33,7 +32,6 @@ const Timer: React.FC = () => {
       const time_left = await invoke<number>("get_time_left");
       setRemainingTime(time_left);
       setKey((prevKey) => prevKey + 1); // Force timer re
-      console.log("started timer", newState);
     } catch (error) {
       console.error("Failed to start timer:", error);
     }

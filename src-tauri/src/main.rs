@@ -1,21 +1,21 @@
 use notify_rust::Notification;
 use rodio::{Decoder, OutputStream, Sink};
+use serde_json;
+use std::fs;
+use std::path::PathBuf;
 use std::{
     collections::HashMap,
     fs::File,
     io::BufReader,
-    time::{Instant, Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use tauri::{command, State};
+use tauri::{command, State, Manager};
 use tokio::time::sleep;
-use std::path::PathBuf;
-use std::fs;
-use serde_json;
 mod timer;
-use timer::Timer;
 use settings::Settings;
-use std::thread;
 use std::sync::{Arc, Barrier, Mutex};
+use std::thread;
+use timer::Timer;
 mod settings;
 
 struct AppState(Mutex<Timer>);
@@ -40,10 +40,11 @@ fn get_time_left(state: State<AppState>) -> u64 {
     timer.time_left()
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     tauri::Builder::default()
-    .manage(AppState(Mutex::new(Timer::new(0)))) // Initial timer state
-    .invoke_handler(tauri::generate_handler![
+        .manage(AppState(Mutex::new(Timer::new(0)))) // Initial timer state
+        .invoke_handler(tauri::generate_handler![
             save_settings,
             load_settings,
             send_notification,
@@ -51,6 +52,31 @@ fn main() {
             stop_timer,
             get_time_left
         ])
+        .setup(|app| {
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let is_done = false;
+                loop {
+                    println!("This runs once every second.");
+                    //if time left is 0, send notification
+                    let state = handle.state::<AppState>();
+                    let time_left = {
+                        let timer = state.0.lock().unwrap();
+                        timer.time_left()
+                    };
+
+                    print!("Time left: {}", time_left);
+                    if time_left == 0 && !is_done {
+                        send_notification().await.unwrap();
+                        is_done = true;
+                    } else {
+                        is_done = false;
+                    }
+                    sleep(Duration::from_secs(1)).await;
+                }
+            });
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -62,10 +88,31 @@ async fn send_notification() -> Result<(), String> {
         .summary("Time's up!")
         .body("Your timer has finished.")
         .icon("assets/notification_icon.png")
+        .timeout(5000)
         .show()
         .map_err(|e| e.to_string())?;
 
     // Play sound
+    println!("Playing notification sound...");
+    let barrier = Arc::new(Barrier::new(2));
+    let barrier_clone = barrier.clone();
+
+    std::thread::spawn(move || {
+        let (_stream, handle) = rodio::OutputStream::try_default().expect("Failed to initialize output stream");
+        let sink = rodio::Sink::try_new(&handle).expect("Failed to create audio sink");
+
+        let file = std::fs::File::open("assets/Chime.mp3").expect("Failed to open audio file");
+        let decoder = rodio::Decoder::new(std::io::BufReader::new(file)).expect("Failed to decode audio file");
+
+        sink.append(decoder);
+        sink.sleep_until_end(); // Block until sound finishes playing
+        println!("Sound has played!");
+
+        barrier_clone.wait(); // Notify the main thread
+    });
+
+    barrier.wait();
+    /* 
     if let Ok((_stream, stream_handle)) = OutputStream::try_default() {
         let sink = Sink::try_new(&stream_handle).map_err(|e| e.to_string())?;
         let file = File::open("assets/notification.mp3").map_err(|e| e.to_string())?;
@@ -73,7 +120,7 @@ async fn send_notification() -> Result<(), String> {
         sink.append(source);
         sink.sleep_until_end();
     }
-
+    */
     Ok(())
 }
 
@@ -92,4 +139,27 @@ async fn load_settings() -> Result<Settings, String> {
     Ok(settings::load().await?)
 }
 
+#[command]
+fn play_notification_sound() {
+    println!("Playing notification sound...");
+    let barrier = Arc::new(Barrier::new(2));
+    let barrier_clone = barrier.clone();
 
+    std::thread::spawn(move || {
+        let (_stream, handle) =
+            rodio::OutputStream::try_default().expect("Failed to initialize output stream");
+        let sink = rodio::Sink::try_new(&handle).expect("Failed to create audio sink");
+
+        let file = std::fs::File::open("src/assets/Chime.mp3").expect("Failed to open audio file");
+        let decoder = rodio::Decoder::new(std::io::BufReader::new(file))
+            .expect("Failed to decode audio file");
+
+        sink.append(decoder);
+        sink.sleep_until_end(); // Block until sound finishes playing
+        println!("Sound has played!");
+
+        barrier_clone.wait(); // Notify the main thread
+    });
+
+    barrier.wait(); // Wait for the spawned thread
+}

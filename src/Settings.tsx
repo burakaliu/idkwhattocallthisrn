@@ -79,10 +79,8 @@ const SettingsPage: React.FC = () => {
     const loadSettings = async () => {
       try {
         const savedSettings = await invoke<Settings>("load_settings");
-        console.log("Loaded settings from backend:", savedSettings);
         if (savedSettings) {
           await setSettings(savedSettings);
-          console.log("Loaded settings:", savedSettings);
         }
       } catch (error) {
         console.error("Failed to load settings:", error);
@@ -91,17 +89,11 @@ const SettingsPage: React.FC = () => {
     loadSettings();
   }, []);
 
-  useEffect(() => {
-    console.log("settings was changed here it is now:", settings);
-  }, [settings]);
-
-
   const handleSave = async () => {
     setSaveStatus("saving");
     try {
       if (settings) {
         await invoke("save_settings", { settings: settings });
-        console.log(settings);
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 2000);
       }
