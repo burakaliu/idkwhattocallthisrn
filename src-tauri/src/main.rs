@@ -1,6 +1,7 @@
 use notify_rust::Notification;
 use rodio::{Decoder, OutputStream, Sink};
 use serde_json;
+use core::time;
 use std::fs;
 use std::path::PathBuf;
 use std::{
@@ -55,9 +56,9 @@ async fn main() {
         .setup(|app| {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let is_done = false;
+                let mut is_done = true;
                 loop {
-                    println!("This runs once every second.");
+                    //println!("This runs once every second.");
                     //if time left is 0, send notification
                     let state = handle.state::<AppState>();
                     let time_left = {
@@ -65,11 +66,13 @@ async fn main() {
                         timer.time_left()
                     };
 
-                    print!("Time left: {}", time_left);
+                    //print!("Time left: {}", time_left);
                     if time_left == 0 && !is_done {
+                        print!("Time's up!");
                         send_notification().await.unwrap();
                         is_done = true;
-                    } else {
+                    } else if time_left != 0 {
+                        print!("Time left: {}", time_left);
                         is_done = false;
                     }
                     sleep(Duration::from_secs(1)).await;
