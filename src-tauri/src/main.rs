@@ -11,6 +11,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tauri::{command, State, Manager};
+use tauri::tray::TrayIconBuilder;
 use tokio::time::sleep;
 mod timer;
 use settings::Settings;
@@ -48,10 +49,10 @@ async fn main() {
         .invoke_handler(tauri::generate_handler![
             save_settings,
             load_settings,
-            send_notification,
-            start_timer,
+            start_timer, 
             stop_timer,
-            get_time_left
+            get_time_left,
+            send_notification,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -66,13 +67,13 @@ async fn main() {
                         timer.time_left()
                     };
 
-                    //print!("Time left: {}", time_left);
                     if time_left == 0 && !is_done {
-                        print!("Time's up!");
+                        println!("Time's up!");
                         send_notification().await.unwrap();
                         is_done = true;
                     } else if time_left != 0 {
-                        print!("Time left: {}", time_left);
+                        let minutes = time_left / 60;
+                        let seconds = time_left % 60;
                         is_done = false;
                     }
                     sleep(Duration::from_secs(1)).await;
