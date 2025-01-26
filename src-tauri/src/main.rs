@@ -1,24 +1,15 @@
-use core::time;
 use notify_rust::Notification;
-use rodio::{Decoder, OutputStream, Sink};
-use serde_json;
-use std::fs;
-use std::path::PathBuf;
 use std::{
-    collections::HashMap,
     fs::File,
     io::BufReader,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration},
 };
 use tauri::{command, Manager, State};
-use tray_icon::{menu::Menu, TrayIconBuilder, TrayIconEvent};
-use tray_icon::Icon;
-use image::{DynamicImage, GenericImageView, ImageFormat, ImageReader};
+use image::{ImageFormat};
 use tokio::time::sleep;
 mod timer;
 use settings::Settings;
 use std::sync::{Arc, Barrier, Mutex};
-use std::thread;
 use tauri::ActivationPolicy;
 
 use timer::Timer;

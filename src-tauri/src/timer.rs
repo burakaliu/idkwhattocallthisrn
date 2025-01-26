@@ -1,6 +1,4 @@
-use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use tauri::State;
 
 pub struct Timer {
     duration: Duration,

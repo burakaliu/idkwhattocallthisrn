@@ -1,7 +1,5 @@
-use serde::{Deserialize, Serialize};
 use std::fs;
 use tauri_api::path::app_dir;
-use tauri::State;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
