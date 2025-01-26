@@ -40,9 +40,12 @@ fn generate_time_icon<'a>(time_left: u64) -> Image<'a> {
     // Encode the image as PNG
     let mut buffer = Cursor::new(Vec::new());
     let encoder = PngEncoder::new(&mut buffer);
-    image::DynamicImage::ImageRgba8(img)
+    image::DynamicImage::ImageRgba8(img.clone()) // Clone the image for saving
         .write_to(&mut buffer, image::ImageFormat::Png)
         .expect("Failed to encode image");
+
+    // Save the image to a file for preview
+    img.save("preview.png").expect("Failed to save image");
 
     // Use from_bytes to create the Image
     Image::from_bytes(&buffer.into_inner()).expect("Failed to create image")
@@ -65,7 +68,7 @@ pub fn init_macos_menu_extra<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Re
             println!("icon updated with time left: {:?}", time_left);
 
             // Update the tray icon with the new icon
-            let _ = TrayIconBuilder::with_id("menu_extra")
+            let result = TrayIconBuilder::with_id("menu_extra")
                 .icon(icon)
                 .icon_as_template(true)
                 .menu(&menu)
@@ -99,6 +102,10 @@ pub fn init_macos_menu_extra<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Re
                     }
                 })
                 .build(&app_handle); // Use the cloned app handle here
+
+            if let Err(e) = result {
+                println!("Failed to update tray icon: {:?}", e);
+            }
 
             // Update every second
             tokio::time::sleep(Duration::from_secs(1)).await;
