@@ -19,6 +19,8 @@ mod timer;
 use settings::Settings;
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
+use tauri::ActivationPolicy;
+
 use timer::Timer;
 mod settings;
 mod tray;
@@ -48,6 +50,8 @@ fn get_time_left(state: State<AppState>) -> u64 {
 #[tokio::main]
 async fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_positioner::init())
         .manage(AppState(Mutex::new(Timer::new(0)))) // Initial timer state
         .invoke_handler(tauri::generate_handler![
             save_settings,
@@ -59,15 +63,14 @@ async fn main() {
         ])
         .setup(|app| {
             let handle = app.handle().clone();
-            let (width, height, rgba_data) = ico_to_rgba("icons/icon.ico")?;
-            let icon = tray_icon::Icon::from_rgba(rgba_data, width, height).unwrap();
-            let tray_menu = Menu::new();
-            let tray_icon = TrayIconBuilder::new()
-                .with_menu(Box::new(tray_menu))
-                .with_tooltip("system-tray - tray icon library!")
-                .with_icon(icon)
-                .build();
 
+            #[cfg(target_os = "macos")]
+            {
+                tray::init_macos_menu_extra(app.handle())?;
+                // Make the Dock icon invisible
+                app.set_activation_policy(ActivationPolicy::Accessory);
+            }
+            
             tauri::async_runtime::spawn(async move {
                 let mut is_done = true;
 

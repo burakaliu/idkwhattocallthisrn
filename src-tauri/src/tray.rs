@@ -14,7 +14,7 @@ pub fn init_macos_menu_extra<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Re
         .icon(Image::from_bytes(include_bytes!("../icons/icon.png")).unwrap())
         .icon_as_template(true)
         .menu(&menu)
-        .menu_on_left_click(false)
+        .show_menu_on_left_click(true)
         .on_menu_event(move |app, event| match event.id.as_ref() {
             "quit" => {
                 app.exit(0);
