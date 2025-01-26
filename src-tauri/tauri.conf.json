@@ -34,7 +34,8 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "assets/notification_icon.jpg"
+      "assets/notification_icon.jpg",
+      "icons/*"
     ]
   }
 }

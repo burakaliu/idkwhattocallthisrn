@@ -1,7 +1,7 @@
+use core::time;
 use notify_rust::Notification;
 use rodio::{Decoder, OutputStream, Sink};
 use serde_json;
-use core::time;
 use std::fs;
 use std::path::PathBuf;
 use std::{
@@ -10,8 +10,10 @@ use std::{
     io::BufReader,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use tauri::{command, State, Manager};
-use tauri::tray::TrayIconBuilder;
+use tauri::{command, Manager, State};
+use tray_icon::{menu::Menu, TrayIconBuilder, TrayIconEvent};
+use tray_icon::Icon;
+use image::{DynamicImage, GenericImageView, ImageFormat, ImageReader};
 use tokio::time::sleep;
 mod timer;
 use settings::Settings;
@@ -19,6 +21,7 @@ use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use timer::Timer;
 mod settings;
+mod tray;
 
 struct AppState(Mutex<Timer>);
 
@@ -49,15 +52,25 @@ async fn main() {
         .invoke_handler(tauri::generate_handler![
             save_settings,
             load_settings,
-            start_timer, 
+            start_timer,
             stop_timer,
             get_time_left,
             send_notification,
         ])
         .setup(|app| {
             let handle = app.handle().clone();
+            let (width, height, rgba_data) = ico_to_rgba("icons/icon.ico")?;
+            let icon = tray_icon::Icon::from_rgba(rgba_data, width, height).unwrap();
+            let tray_menu = Menu::new();
+            let tray_icon = TrayIconBuilder::new()
+                .with_menu(Box::new(tray_menu))
+                .with_tooltip("system-tray - tray icon library!")
+                .with_icon(icon)
+                .build();
+
             tauri::async_runtime::spawn(async move {
                 let mut is_done = true;
+
                 loop {
                     //println!("This runs once every second.");
                     //if time left is 0, send notification
@@ -102,11 +115,13 @@ async fn send_notification() -> Result<(), String> {
     let barrier_clone = barrier.clone();
 
     std::thread::spawn(move || {
-        let (_stream, handle) = rodio::OutputStream::try_default().expect("Failed to initialize output stream");
+        let (_stream, handle) =
+            rodio::OutputStream::try_default().expect("Failed to initialize output stream");
         let sink = rodio::Sink::try_new(&handle).expect("Failed to create audio sink");
 
         let file = std::fs::File::open("assets/Chime.mp3").expect("Failed to open audio file");
-        let decoder = rodio::Decoder::new(std::io::BufReader::new(file)).expect("Failed to decode audio file");
+        let decoder = rodio::Decoder::new(std::io::BufReader::new(file))
+            .expect("Failed to decode audio file");
 
         sink.append(decoder);
         sink.sleep_until_end(); // Block until sound finishes playing
@@ -116,7 +131,7 @@ async fn send_notification() -> Result<(), String> {
     });
 
     barrier.wait();
-    /* 
+    /*
     if let Ok((_stream, stream_handle)) = OutputStream::try_default() {
         let sink = Sink::try_new(&stream_handle).map_err(|e| e.to_string())?;
         let file = File::open("assets/notification.mp3").map_err(|e| e.to_string())?;
@@ -166,4 +181,24 @@ fn play_notification_sound() {
     });
 
     barrier.wait(); // Wait for the spawned thread
+}
+
+fn ico_to_rgba(path: &str) -> Result<(u32, u32, Vec<u8>), Box<dyn std::error::Error>> {
+    // Open the file
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+
+    // Decode the .ico file
+    let image = image::load(reader, ImageFormat::Ico)?;
+
+    // Ensure the image is in RGBA format
+    let rgba_image = image.to_rgba8();
+
+    // Get image dimensions
+    let (width, height) = rgba_image.dimensions();
+
+    // Get the raw pixel data in RGBA format
+    let rgba_data = rgba_image.into_raw();
+
+    Ok((width, height, rgba_data))
 }
