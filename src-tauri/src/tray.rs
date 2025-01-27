@@ -45,7 +45,7 @@ fn generate_time_icon<'a>(time_left: u64) -> Image<'a> {
         .expect("Failed to encode image");
 
     // Save the image to a file for preview
-    img.save("preview.png").expect("Failed to save image");
+    //img.save("preview.png").expect("Failed to save image");
 
     // Use from_bytes to create the Image
     Image::from_bytes(&buffer.into_inner()).expect("Failed to create image")
