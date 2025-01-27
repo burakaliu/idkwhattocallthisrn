@@ -29,7 +29,7 @@ fn generate_time_icon<'a>(time_left: u64) -> Image<'a> {
     let seconds = time_left % 60;
     let time_text = format!("{:02}:{:02}", minutes, seconds);
 
-    println!("time_text: {:?}", time_text);
+    //println!("time_text: {:?}", time_text);
 
     // Draw the time text onto the image
     let text_color = Rgba([255, 255, 255, 255]);
@@ -100,7 +100,7 @@ pub fn init_macos_menu_extra<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Re
             };
 
             let icon = generate_time_icon(time_left);
-            println!("icon updated with time left: {:?}", time_left);
+            //println!("icon updated with time left: {:?}", time_left);
 
             // Update the tray icon with the new icon
             if let Err(e) = tray_icon.set_icon(Some(icon)) {
