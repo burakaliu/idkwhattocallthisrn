@@ -5,15 +5,14 @@ use tauri::{
     image::Image,
 };
 use tauri_plugin_positioner::WindowExt;
-use image::{ImageBuffer, Rgba, RgbaImage, GenericImage};
+use image::{Rgba, RgbaImage};
 use std::time::Duration;
 
 use crate::AppState;
 use rusttype::{Font, Scale};
 use imageproc::drawing::draw_text_mut;
-use ab_glyph::{FontArc, ScaleFont};
+use ab_glyph::{FontArc};
 use image::codecs::png::PngEncoder;
-use image::ColorType;
 use std::io::Cursor;
 
 fn generate_time_icon<'a>(time_left: u64) -> Image<'a> {
@@ -33,9 +32,8 @@ fn generate_time_icon<'a>(time_left: u64) -> Image<'a> {
     println!("time_text: {:?}", time_text);
 
     // Draw the time text onto the image
-    let scale = Scale::uniform(12.0);
     let text_color = Rgba([255, 255, 255, 255]);
-    draw_text_mut(&mut img, text_color, 40, 40, 80.0, &font, &time_text);
+    draw_text_mut(&mut img, text_color, 10, 14, 100.0, &font, &time_text);
 
     // Encode the image as PNG
     let mut buffer = Cursor::new(Vec::new());
@@ -45,7 +43,7 @@ fn generate_time_icon<'a>(time_left: u64) -> Image<'a> {
         .expect("Failed to encode image");
 
     // Save the image to a file for preview
-    //img.save("preview.png").expect("Failed to save image");
+    img.save("/Users/burakunlu/preview.png").expect("Failed to save image");
 
     // Use from_bytes to create the Image
     Image::from_bytes(&buffer.into_inner()).expect("Failed to create image")
