@@ -17,8 +17,8 @@ use image::ColorType;
 use std::io::Cursor;
 
 fn generate_time_icon<'a>(time_left: u64) -> Image<'a> {
-    let width = 32;
-    let height = 32;
+    let width =  (128*2);
+    let height = 128;
     let mut img = RgbaImage::from_pixel(width, height, Rgba([255, 255, 255, 0]));
 
     // Load a font using ab_glyph
@@ -34,8 +34,8 @@ fn generate_time_icon<'a>(time_left: u64) -> Image<'a> {
 
     // Draw the time text onto the image
     let scale = Scale::uniform(12.0);
-    let text_color = Rgba([0, 0, 0, 255]);
-    draw_text_mut(&mut img, text_color, 2, 10, 12.0, &font, &time_text);
+    let text_color = Rgba([255, 255, 255, 255]);
+    draw_text_mut(&mut img, text_color, 40, 40, 80.0, &font, &time_text);
 
     // Encode the image as PNG
     let mut buffer = Cursor::new(Vec::new());
@@ -56,6 +56,43 @@ pub fn init_macos_menu_extra<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Re
     let menu = Menu::with_items(app, &[&quit_i])?;
 
     let app_handle = app.clone(); // Clone the app handle here
+
+    // Create the tray icon once and store it
+    let tray_icon = TrayIconBuilder::with_id("menu_extra")
+        .icon(generate_time_icon(0)) // Initial icon
+        .icon_as_template(true)
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(move |app, event| match event.id.as_ref() {
+            "quit" => {
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            let app = tray.app_handle();
+
+            tauri_plugin_positioner::on_tray_event(app.app_handle(), &event);
+
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    if !window.is_visible().unwrap_or(false) {
+                      let _ = window.move_window(tauri_plugin_positioner::Position::TrayBottomCenter);
+                      let _ = window.show();
+                      let _ = window.set_focus();
+                    } else {
+                      let _ = window.hide();
+                    }
+                }
+            }
+        })
+        .build(&app_handle)?; // Use the cloned app handle here
+
     tauri::async_runtime::spawn(async move {
         loop {
             let state = app_handle.state::<AppState>();
@@ -68,42 +105,7 @@ pub fn init_macos_menu_extra<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Re
             println!("icon updated with time left: {:?}", time_left);
 
             // Update the tray icon with the new icon
-            let result = TrayIconBuilder::with_id("menu_extra")
-                .icon(icon)
-                .icon_as_template(true)
-                .menu(&menu)
-                .show_menu_on_left_click(false)
-                .on_menu_event(move |app, event| match event.id.as_ref() {
-                    "quit" => {
-                        app.exit(0);
-                    }
-                    _ => {}
-                })
-                .on_tray_icon_event(|tray, event| {
-                    let app = tray.app_handle();
-
-                    tauri_plugin_positioner::on_tray_event(app.app_handle(), &event);
-
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    } = event
-                    {
-                        if let Some(window) = app.get_webview_window("main") {
-                            if !window.is_visible().unwrap_or(false) {
-                              let _ = window.move_window(tauri_plugin_positioner::Position::TrayBottomCenter);
-                              let _ = window.show();
-                              let _ = window.set_focus();
-                            } else {
-                              let _ = window.hide();
-                            }
-                        }
-                    }
-                })
-                .build(&app_handle); // Use the cloned app handle here
-
-            if let Err(e) = result {
+            if let Err(e) = tray_icon.set_icon(Some(icon)) {
                 println!("Failed to update tray icon: {:?}", e);
             }
 
