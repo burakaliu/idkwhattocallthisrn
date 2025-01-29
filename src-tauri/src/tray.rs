@@ -9,7 +9,6 @@ use image::{Rgba, RgbaImage};
 use std::time::Duration;
 
 use crate::AppState;
-use rusttype::{Font, Scale};
 use imageproc::drawing::draw_text_mut;
 use ab_glyph::{FontArc};
 use image::codecs::png::PngEncoder;
@@ -37,7 +36,6 @@ fn generate_time_icon<'a>(time_left: u64) -> Image<'a> {
 
     // Encode the image as PNG
     let mut buffer = Cursor::new(Vec::new());
-    let encoder = PngEncoder::new(&mut buffer);
     image::DynamicImage::ImageRgba8(img.clone()) // Clone the image for saving
         .write_to(&mut buffer, image::ImageFormat::Png)
         .expect("Failed to encode image");
